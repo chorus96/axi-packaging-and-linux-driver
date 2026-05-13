@@ -75,3 +75,35 @@ sequenceDiagram
 - low-level register 접근은 직접 수행하지 않고 `axi_1wire_host.c`의 API를 사용합니다.
 - 단일 1-Wire 센서를 가정하여 모든 ROM 선택 단계에서 `Skip ROM(0xCC)`을 사용합니다.
 - 무한 루프 예제이므로 종료 조건이나 sleep/delay는 포함되어 있지 않습니다.
+
+## 재검토 보강: Baremetal 예제 계층화
+
+### 호출 그래프
+
+```mermaid
+flowchart TB
+    TOP["continuous_temperature_reading"]
+    CFG["thermistor_config"]
+    READ["thermistor_temp_reading"]
+    CRC["CRC 검증"]
+    CONV["raw temperature 변환"]
+    API["AXI_1WIRE_HOST_* API"]
+
+    TOP --> CFG --> API
+    TOP --> READ --> API
+    TOP --> CRC --> CONV
+```
+
+### 센서 명령 요약
+
+| 명령 | 값 | 사용 위치 | 의미 |
+|---|---:|---|---|
+| Skip ROM | `0xCC` | 설정/읽기 공통 | 단일 device 버스에서 ROM addressing 생략 |
+| Write Scratchpad | `0x4E` | `thermistor_config` | TH/TL/config 기록 |
+| Copy Scratchpad | `0x48` | `thermistor_config` | scratchpad 설정을 EEPROM에 저장 |
+| Convert T | `0x44` | `thermistor_temp_reading` | 온도 변환 시작 |
+| Read Scratchpad | `0xBE` | `thermistor_temp_reading` | 9바이트 scratchpad 읽기 |
+
+### 분석 결론
+
+이 예제는 센서 프로토콜을 애플리케이션 계층에 두고, AXI IP 접근은 baremetal driver API에 위임합니다. 따라서 다른 1-Wire slave를 붙일 때는 `AXI_1WIRE_HOST_*` primitive를 재사용하고 slave-specific command sequence만 교체하면 됩니다.

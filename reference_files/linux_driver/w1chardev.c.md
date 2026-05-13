@@ -89,3 +89,38 @@ sequenceDiagram
 - `xlnxw1_base_register`, wait queue, flag가 전역 변수라 단일 IP 인스턴스 예제에 적합합니다.
 - `device_in_use`로 중복 open을 방지합니다.
 - IRQ 기반 대기를 사용하지만 timeout 처리는 별도로 두지 않습니다.
+
+## 재검토 보강: Character device ABI 관점
+
+### userspace ABI와 커널 내부 동작 매핑
+
+| Userspace 요청 | 커널 내부 명령 | 반환 데이터 |
+|---|---|---|
+| `RESET_BUS` | `AXI_RESET` 후 `AXIW1_INITPRES` 실행 | `0`: presence 감지, `1`: 미감지/실패 |
+| `READ_BIT` | `AXIW1_READBIT` 실행 | `DATA[0]` |
+| `WRITE_BIT` | `AXIW1_WRITEBIT + (val & 1)` 실행 | 없음 |
+| `READ_BYTE` | `AXIW1_READBYTE` 실행 | `DATA[7:0]` |
+| `WRITE_BYTE` | `AXIW1_WRITEBYTE + (val & 0xFF)` 실행 | 없음 |
+
+### 리소스 생명주기
+
+```mermaid
+flowchart TB
+    INIT["module_init\nxlnxw1_init"]
+    CHR["register_chrdev"]
+    CLASS["class_create"]
+    DEV["device_create\n/dev/xlnx_w1"]
+    PDRV["platform_driver_register"]
+    PROBE["xlnxw1_probe\nMMIO + IRQ"]
+    EXIT["xlnxw1_exit"]
+
+    INIT --> CHR --> CLASS --> DEV --> PDRV --> PROBE
+    EXIT --> DEV
+    EXIT --> CLASS
+    EXIT --> CHR
+    EXIT --> PDRV
+```
+
+### 분석 결론
+
+이 파일은 교육 목적의 직접 제어 ABI를 보여줍니다. 단일 device node와 전역 MMIO 포인터를 사용하므로 구조가 단순하지만, production driver 관점에서는 multi-instance, timeout, file-private state 보강이 필요합니다.

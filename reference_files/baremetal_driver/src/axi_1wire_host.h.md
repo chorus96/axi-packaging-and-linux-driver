@@ -62,3 +62,24 @@ flowchart TB
 | `AXI_1WIRE_HOST_SelfTest` | IP ID/version을 읽어 기본 연결을 확인합니다. |
 | `AXI_1WIRE_HOST_GPIO_Read` | GPIO 직접 제어 모드로 bus level을 읽습니다. |
 | `AXI_1WIRE_HOST_GPIO_Write` | GPIO 직접 제어 모드로 bus level을 설정합니다. |
+
+## 재검토 보강: API 계층별 사용 의도
+
+```mermaid
+flowchart TB
+    HIGH["Sensor/application code"]
+    PRIM["1-Wire primitive APIs\nResetBus/TouchBit/ReadByte/WriteByte"]
+    GPIO["GPIO override APIs\nGPIO_Read/GPIO_Write"]
+    MMIO["mReadReg/mWriteReg macros"]
+    IP["AXI 1-Wire Host IP"]
+
+    HIGH --> PRIM --> MMIO --> IP
+    HIGH --> GPIO --> MMIO
+```
+
+| API 계층 | 사용 의도 |
+|---|---|
+| Register macro | IP register를 직접 검증하거나 custom sequence를 작성할 때 사용합니다. |
+| 1-Wire primitive | 대부분의 1-Wire slave protocol 구현에 사용하는 기본 read/write/reset 동작입니다. |
+| GPIO override | master FSM이 아닌 직접 bus level 제어/관찰이 필요할 때 사용합니다. |
+| Self-test | hardware handoff 후 base address와 IP identity를 빠르게 확인할 때 사용합니다. |

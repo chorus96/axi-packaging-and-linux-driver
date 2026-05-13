@@ -106,3 +106,39 @@ sequenceDiagram
 - Linux W1 framework와 직접 통합되므로 userspace가 별도 ioctl 프로토콜을 몰라도 `w1` slave 드라이버/도구를 사용할 수 있습니다.
 - busy polling 대신 READY/DONE 인터럽트를 enable하고 wait queue로 대기합니다.
 - IP version major 값 검사를 통해 향후 호환되지 않는 하드웨어를 거부하도록 구성되어 있습니다.
+
+## 재검토 보강: Linux W1 서브시스템 관점
+
+### 콜백 등록 관계
+
+```mermaid
+flowchart TB
+    PROBE["xlnxw1_probe"]
+    BUS["lp->bus_host"]
+    TB["touch_bit = xlnxw1_touch_bit"]
+    RB["read_byte = xlnxw1_read_byte"]
+    WB["write_byte = xlnxw1_write_byte"]
+    RS["reset_bus = xlnxw1_reset_bus"]
+    ADD["w1_add_master_device"]
+    CORE["Linux w1 core"]
+
+    PROBE --> BUS
+    BUS --> TB
+    BUS --> RB
+    BUS --> WB
+    BUS --> RS
+    BUS --> ADD --> CORE
+```
+
+### 오류/timeout 처리
+
+| 상황 | 처리 방식 | 반환/효과 |
+|---|---|---|
+| IRQ 대기 중 signal interrupt | `xlnxw1_wait_irq_interruptible_timeout()`이 `-EINTR` 반환 | 호출 콜백은 inactive bus 값(`1` 또는 `0xFF`)을 반환하거나 조기 종료합니다. |
+| IRQ timeout | `-EBUSY` 반환 | 하드웨어 응답 없음으로 간주하고 콜백이 안전한 기본값을 반환합니다. |
+| IP ID 불일치 | probe 단계에서 `-ENODEV` 반환 | W1 master로 등록하지 않습니다. |
+| major version 불일치 | probe 단계에서 `-ENODEV` 반환 | 호환되지 않는 IP 버전을 거부합니다. |
+
+### 분석 결론
+
+이 드라이버는 튜토리얼용 character driver보다 Linux 커널에 더 자연스러운 구현입니다. userspace ABI를 새로 만들지 않고 W1 core의 표준 callback interface에 AXI 레지스터 command primitive를 매핑하므로, DS18B20 같은 기존 W1 slave driver와 결합하기 쉽습니다.

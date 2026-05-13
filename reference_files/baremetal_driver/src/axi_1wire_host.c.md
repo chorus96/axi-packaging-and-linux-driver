@@ -77,3 +77,19 @@ sequenceDiagram
 - interrupt를 사용하지 않는 polling 기반 baremetal driver입니다.
 - API가 1-Wire command sequence의 단일 primitive를 제공하고, 센서별 프로토콜은 애플리케이션 계층에서 조합합니다.
 - GPIO read/write 함수는 1-Wire master FSM을 우회하여 버스 레벨을 직접 확인하거나 구동하는 용도로 제공됩니다.
+
+## 재검토 보강: 함수별 레지스터 시퀀스
+
+| 함수 | Instruction register | Control register | 결과 read |
+|---|---|---|---|
+| `ResetBus` | `INITPRES` | `RESET` 후 `GO` | `STAT[31]` failure bit |
+| `TouchBit(bit=1)` | `READBIT` | `GO` | `RXDATA[0]` |
+| `TouchBit(bit=0)` | `WRITEBIT + 0` | `GO` | 없음 |
+| `ReadByte` | `READBYTE` | `GO` | `RXDATA[7:0]` |
+| `WriteByte` | `WRITEBYTE + byte` | `GO` | 없음 |
+| `GPIO_Read` | `0x80800000` | 사용 안 함 | `GPIODATA[0]` |
+| `GPIO_Write` | `0x80010000` 또는 `0x80000000` | 사용 안 함 | 없음 |
+
+### Polling 방식의 의미
+
+이 구현은 interrupt controller 설정 없이도 동작하도록 모든 완료 조건을 MMIO polling으로 확인합니다. 따라서 초기 bring-up에는 단순하고 유용하지만, 긴 변환 대기나 OS 환경에서는 CPU 점유를 줄이기 위해 interrupt 기반 방식이 더 적합합니다.

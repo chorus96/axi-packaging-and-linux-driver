@@ -52,3 +52,26 @@ sequenceDiagram
 - 실제 1-Wire bus transaction은 수행하지 않고, register access와 IP identity만 확인합니다.
 - 하드웨어 주소 매핑이 잘못되었거나 다른 IP가 연결된 경우 빠르게 실패하도록 구성되어 있습니다.
 - 주석상 destructive test 가능성을 언급하지만 현재 구현은 ID/version read만 수행합니다.
+
+## 재검토 보강: Self-test 범위
+
+```mermaid
+flowchart TB
+    BASE["baseaddr"]
+    ID["read IPID"]
+    VER["read IPVER"]
+    CHECK1{"IPID == 0x10EE4453?"}
+    CHECK2{"IPVER[31:24] == 0x76?"}
+    PASS["XST_SUCCESS"]
+    FAIL["XST_FAILURE"]
+
+    BASE --> ID --> CHECK1
+    BASE --> VER --> CHECK2
+    CHECK1 -- no --> FAIL
+    CHECK1 -- yes --> CHECK2
+    CHECK2 -- yes --> PASS
+    CHECK2 -- no --> FAIL
+```
+
+- 이 self-test는 bus에 실제 1-Wire device가 없어도 실행 가능한 identity check입니다.
+- presence detect나 read/write timing 검증은 수행하지 않으므로, 센서 연결 문제는 애플리케이션 또는 higher-level API 테스트에서 추가 확인해야 합니다.

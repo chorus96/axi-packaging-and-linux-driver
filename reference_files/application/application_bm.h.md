@@ -27,3 +27,18 @@ flowchart LR
 
 - 프로토타입에서 `s8` 타입을 사용하므로 이 헤더를 include하는 파일은 보통 Xilinx 타입 정의(`xil_types.h`)가 먼저 필요합니다.
 - 구현 파일인 `application_bm.c`는 `application_bm.h`, `xil_types.h`, `xil_printf.h`, `axi_1wire_host.h`, `xparameters.h`를 함께 사용합니다.
+
+## 재검토 보강: 헤더 사용 계약
+
+```mermaid
+flowchart LR
+    TYPES["xil_types.h\ns8 정의"]
+    HEADER["application_bm.h"]
+    CALLER["caller source"]
+
+    TYPES --> CALLER
+    HEADER --> CALLER
+```
+
+- 이 헤더는 구현 세부를 숨기고 연속 온도 읽기 진입점만 노출합니다.
+- `s8` 타입을 직접 사용하지만 헤더 내부에서 `xil_types.h`를 include하지 않으므로, 호출자가 타입 정의를 먼저 포함하는 방식의 계약을 가집니다.

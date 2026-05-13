@@ -68,3 +68,34 @@ sequenceDiagram
 
 - device open 실패, ioctl 실패, presence failure 발생 시 `err` label로 이동해 fd를 닫고 종료합니다.
 - CRC가 맞지 않으면 온도 대신 `CRC does not match`를 출력하고 다음 루프를 계속합니다.
+
+## 재검토 보강: 온도 변환 세부
+
+### Scratchpad byte 사용
+
+| Byte | 의미 | 이 애플리케이션의 사용 |
+|---:|---|---|
+| `byte0` | Temperature LSB | raw temperature 하위 byte |
+| `byte1` | Temperature MSB/sign | sign 판정 및 상위 byte |
+| `byte2`~`byte4` | TH/TL/config | CRC 계산에 포함 |
+| `byte5`~`byte7` | reserved | CRC 계산에 포함 |
+| `byte8` | CRC | 앞 8바이트로 계산한 CRC와 비교 |
+
+### 계산 흐름
+
+```mermaid
+flowchart LR
+    RAW["byte1:byte0"]
+    SIGN["sign bit 검사\nbyte1 & 0x80"]
+    MAG["양수 또는 2의 보수 magnitude"]
+    INT["integer part\nraw >> 4"]
+    FRAC["fractional part\nlow nibble weights"]
+    PRINT["printf temperature"]
+
+    RAW --> SIGN --> MAG --> INT --> PRINT
+    MAG --> FRAC --> PRINT
+```
+
+### 분석 결론
+
+애플리케이션은 ROM search를 수행하지 않고 `Skip ROM(0xCC)`을 사용하므로 버스에 단일 온도 센서가 연결된 실습 구성을 전제로 합니다. 다중 1-Wire device 버스에서는 ROM 선택 단계가 추가로 필요합니다.
